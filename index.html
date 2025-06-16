@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Données Accéléromètre Micro:bit</title>
+  <style>
+    body { font-family: sans-serif; padding: 20px; }
+    #dataArea { white-space: pre-wrap; font-family: monospace; background: #f0f0f0; padding: 10px; border: 1px solid #ccc; }
+  </style>
+</head>
+<body>
+  <h1>Données Accéléromètre du Micro:bit</h1>
+  <button id="connectButton">Connecter au Micro:bit</button>
+  <div id="dataArea"></div>
+
+  <script>
+    let device;
+
+    document.getElementById('connectButton').addEventListener('click', async () => {
+      try {
+        // Le filtre utiliser le vendorId du micro:bit (0x0D28)
+        const filters = [{ vendorId: 0x0D28 }];
+        // Demande d'accès au périphérique USB
+        device = await navigator.usb.requestDevice({ filters });
+        
+        // Ouverture de la connexion
+        await device.open();
+        if (device.configuration === null) {
+          await device.selectConfiguration(1);
+        }
+        // Revendiquer l'interface 0 (cela peut varier selon la configuration)
+        await device.claimInterface(0);
+        console.log('Micro:bit connecté:', device);
+
+        // Démarrer le cycle de lecture
+        readLoop();
+      } catch (error) {
+        console.error('Erreur de connexion:', error);
+      }
+    });
+
+    async function readLoop() {
+      const dataArea = document.getElementById('dataArea');
+      const decoder = new TextDecoder('utf-8');
+      while (device && device.opened) {
+        try {
+          // Lecture sur l'endpoint 1, max 64 octets (l'endpoint peut varier)
+          let result = await device.transferIn(1, 64);
+          if (result.status === 'ok' && result.data) {
+            // Décodage des données reçues
+            let text = decoder.decode(result.data);
+            // Affichage du texte reçu (les valeurs d'accéléromètre)
+            dataArea.textContent += text + "\n";
+          }
+        } catch (error) {
+          console.error('Erreur de lecture:', error);
+          break;
+        }
+      }
+    }
+  </script>
+</body>
+</html>
