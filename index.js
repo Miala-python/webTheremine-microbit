@@ -8,6 +8,7 @@
         var distMIN, distMAX, freqREF, coefP;
         const distHTML = document.getElementById('distVal');
         const freqHTML = document.getElementById('freqVal');
+        var serial;
 
 
         async function connectToMicrobit() {
@@ -15,7 +16,7 @@
             stopSound();
             try {
                 // Assurez-vous que le polyfill est disponible si l'API native n'est pas là
-                const serial = navigator.serial || serial;
+                serial = navigator.serial || serial;
 
 
                 // Demande à l'utilisateur de sélectionner le port série
