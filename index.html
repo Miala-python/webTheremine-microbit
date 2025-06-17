@@ -137,10 +137,10 @@
                         // Convertir en nombre avec gestion des erreurs
                         const distance = parseInt(cleanedLine);
 
-                        if (!isNaN(distance) && distance > 0) {
+                        if (!isNaN(distance)) {
                             // Utiliser la valeur ici (ex: mise à jour UI)
                             console.log("Distance valide:", distance);
-                            dist = distance / 58;
+                            dist = distance / 580;
                             distHTML.textContent = dist;
                             // Exemple: document.getElementById("distance").innerText = distance;
                         } else {
