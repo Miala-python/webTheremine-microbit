@@ -248,3 +248,96 @@ function stopSound() {
 </body>
 
 </html>
+
+async function connectToMicrobit() {
+    dist = 0;
+    stopSound();
+    let device;
+    try {
+        // Demander la connexion au micro:bit via Web USB
+        device = await navigator.usb.requestDevice({
+            filters: [{ vendorId: 0x0D28 }] // Vendor ID du micro:bit
+        });
+
+        await device.open();
+        await device.selectConfiguration(1);
+        await device.claimInterface(0); // Interface standard pour la communication série
+
+        // Trouver l'endpoint IN (reception)
+        let endpointIn = null;
+        const interfaces = device.configuration.interfaces;
+        for (const iface of interfaces) {
+            for (const alternate of iface.alternates) {
+                for (const endpoint of alternate.endpoints) {
+                    if (endpoint.direction === 'in') {
+                        endpointIn = endpoint;
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (!endpointIn) {
+            throw new Error("Endpoint IN non trouvé");
+        }
+
+        connectButton.textContent = "Connecté !";
+        connectButton.style.backgroundColor = "#27ae60";
+
+        const textDecoder = new TextDecoder();
+        let receivedData = '';
+
+        // Fonction récursive de lecture
+        async function readData() {
+            try {
+                const result = await device.transferIn(endpointIn.endpointNumber, 64);
+                const data = new Uint8Array(result.data.buffer);
+                receivedData += textDecoder.decode(data);
+
+                // Traitement des lignes
+                const lines = receivedData.split('\n');
+                receivedData = lines.pop() || ''; // Garder les données incomplètes
+
+                for (const line of lines) {
+                    const cleanedLine = line.trim();
+                    if (!cleanedLine) continue;
+
+                    const tmp = parseInt(cleanedLine);
+                    if (!isNaN(tmp)) {
+                        dist = tmp / 58;
+                        distHTML.textContent = dist.toFixed(2); // Afficher avec 2 décimales
+                    } else {
+                        console.warn("Valeur invalide:", cleanedLine);
+                    }
+                }
+
+                // Relancer la lecture si toujours connecté
+                if (device.opened) {
+                    readData();
+                }
+            } catch (error) {
+                console.error("Erreur lecture:", error);
+                handleDisconnect();
+            }
+        }
+
+        // Démarrer la lecture
+        readData();
+
+    } catch (error) {
+        console.error("Erreur connexion:", error);
+        connectButton.textContent = "Erreur - Réessayer";
+        connectButton.style.backgroundColor = "#e74c3c";
+        if (device && device.opened) {
+            await device.close();
+        }
+    }
+
+    function handleDisconnect() {
+        connectButton.textContent = "Déconnecté - Reconnecter";
+        connectButton.style.backgroundColor = "#e74c3c";
+        if (device && device.opened) {
+            device.close();
+        }
+    }
+}
