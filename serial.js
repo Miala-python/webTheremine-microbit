@@ -487,5 +487,7 @@ class Serial {
     }
 }
 /* an object to be used for starting the serial workflow */
- const serial = new Serial(); //export
+try{
+        var serial;}catch (e){}
+serial = new Serial(); //export
 //# sourceMappingURL=serial.js.map
