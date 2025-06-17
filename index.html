@@ -133,6 +133,8 @@
                         const lastLine = lines[lines.length - 1];
                         // const values = lastLine.split(',');
 
+                        
+
                         dist = parseInt(lastLine);
                     }
                 }
@@ -145,10 +147,6 @@
 
         // Gestionnaire d'événement pour le bouton
         connectButton.addEventListener('click', connectToMicrobit);
-
-        var audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        var oscillateur = audioContext.createOscillator();
-        var gainNode = audioContext.createGain();
 
         let audioContext;
         let currentOscillator = null;
