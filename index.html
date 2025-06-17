@@ -102,91 +102,101 @@
             stopSound();
             let device;
             try {
-                // Demander la connexion au micro:bit via Web USB
                 device = await navigator.usb.requestDevice({
-                    filters: [{ vendorId: 0x0D28 }] // Vendor ID du micro:bit
+                    filters: [{ vendorId: 0x0D28 }] // Vendor ID micro:bit
                 });
 
                 await device.open();
+                await device.reset(); // Réinitialisation importante
                 await device.selectConfiguration(1);
-                await device.claimInterface(5); // Interface standard pour la communication série
 
-                // Trouver l'endpoint IN (reception)
+                // Revendication de l'interface 5 avec alternate 0
+                await device.claimInterface(5);
+
+                // Configuration de la communication série (baud rate 115200)
+                await device.controlTransferOut({
+                    requestType: 'class',
+                    recipient: 'interface',
+                    request: 0x22,   // SET_CONTROL_LINE_STATE
+                    value: 0x01,
+                    index: 5
+                });
+
+                await device.controlTransferOut({
+                    requestType: 'class',
+                    recipient: 'interface',
+                    request: 0x20,   // SET_LINE_CODING
+                    value: 0x00,
+                    index: 5,
+                    data: new Uint8Array([
+                        0x00, 0xC2, 0x01, 0x00, // 115200 baud (little-endian)
+                        0x00,                   // Stop bits (1)
+                        0x00,                   // Parity (none)
+                        0x08                    // Data bits (8)
+                    ])
+                });
+
+                // Trouver les endpoints
                 let endpointIn = null;
-                const interfaces = device.configuration.interfaces;
-                for (const iface of interfaces) {
-                    for (const alternate of iface.alternates) {
-                        for (const endpoint of alternate.endpoints) {
-                            if (endpoint.direction === 'in') {
-                                endpointIn = endpoint;
-                                break;
-                            }
-                        }
+                const interface = device.configuration.interfaces.find(i => i.interfaceNumber === 5);
+                const alternate = interface.alternates[0]; // Utiliser le premier alternate
+
+                for (const endpoint of alternate.endpoints) {
+                    if (endpoint.direction === 'in' && endpoint.type === 'bulk') {
+                        endpointIn = endpoint;
                     }
                 }
 
-                if (!endpointIn) {
-                    throw new Error("Endpoint IN non trouvé");
-                }
+                if (!endpointIn) throw new Error("Endpoint IN non trouvé");
 
+                // Mise à jour UI connexion
                 connectButton.textContent = "Connecté !";
                 connectButton.style.backgroundColor = "#27ae60";
 
                 const textDecoder = new TextDecoder();
                 let receivedData = '';
 
-                // Fonction récursive de lecture
                 async function readData() {
                     try {
                         const result = await device.transferIn(endpointIn.endpointNumber, 64);
                         const data = new Uint8Array(result.data.buffer);
                         receivedData += textDecoder.decode(data);
 
-                        // Traitement des lignes
+                        // Découpage par lignes
                         const lines = receivedData.split('\n');
-                        receivedData = lines.pop() || ''; // Garder les données incomplètes
+                        receivedData = lines.pop(); // Garder le fragment incomplet
 
                         for (const line of lines) {
-                            const cleanedLine = line.trim();
-                            if (!cleanedLine) continue;
+                            if (!line.trim()) continue;
 
-                            const tmp = parseInt(cleanedLine);
-                            if (!isNaN(tmp)) {
-                                dist = tmp / 58;
-                                distHTML.textContent = dist.toFixed(2); // Afficher avec 2 décimales
-                            } else {
-                                console.warn("Valeur invalide:", cleanedLine);
+                            const value = parseInt(line);
+                            if (!isNaN(value)) {
+                                dist = value / 58;
+                                distHTML.textContent = dist.toFixed(2);
                             }
                         }
 
-                        // Relancer la lecture si toujours connecté
-                        if (device.opened) {
-                            readData();
-                        }
+                        if (device.opened) readData(); // Continuer la lecture
+
                     } catch (error) {
                         console.error("Erreur lecture:", error);
                         handleDisconnect();
                     }
                 }
 
-                // Démarrer la lecture
                 readData();
 
             } catch (error) {
                 console.error("Erreur connexion:", error);
                 connectButton.textContent = "Erreur - Réessayer";
                 connectButton.style.backgroundColor = "#e74c3c";
-                if (device && device.opened) {
-                    await device.close();
-                }
+                if (device?.opened) await device.close();
             }
 
             function handleDisconnect() {
-                connectButton.textContent = "Déconnecté - Reconnecter";
-                connectButton.style.backgroundColor = "#e74c3c";
-                if (device && device.opened) {
-                    device.close();
-                }
+                connectButton.textContent = "Connecter le micro:bit";
+                connectButton.style.backgroundColor = "";
+                if (device?.opened) device.close();
             }
         }
 
