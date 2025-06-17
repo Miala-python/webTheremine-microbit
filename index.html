@@ -97,169 +97,67 @@
         var dist = 0;
         var distMIN, distMAX, freqREF;
 
+
         async function connectToMicrobit() {
             dist = 0;
             stopSound();
-            let device;
             try {
-                device = await navigator.usb.requestDevice({
-                    filters: [{ vendorId: 0x0D28 }] // Vendor ID micro:bit
-                });
+                // Demande à l'utilisateur de sélectionner le port série
+                const port = await navigator.serial.requestPort();
+                await port.open({ baudRate: 115200 });
 
-                await device.open();
-                await device.reset(); // Réinitialisation importante
-                await device.selectConfiguration(1);
-
-                // Revendication de l'interface 5 avec alternate 0
-                await device.claimInterface(5);
-
-                // Configuration de la communication série (baud rate 115200)
-                await device.controlTransferOut({
-                    requestType: 'class',
-                    recipient: 'interface',
-                    request: 0x22,   // SET_CONTROL_LINE_STATE
-                    value: 0x01,
-                    index: 5
-                });
-
-                await device.controlTransferOut({
-                    requestType: 'class',
-                    recipient: 'interface',
-                    request: 0x20,   // SET_LINE_CODING
-                    value: 0x00,
-                    index: 5,
-                    data: new Uint8Array([
-                        0x00, 0xC2, 0x01, 0x00, // 115200 baud (little-endian)
-                        0x00,                   // Stop bits (1)
-                        0x00,                   // Parity (none)
-                        0x08                    // Data bits (8)
-                    ])
-                });
-
-                // Trouver les endpoints
-                let endpointIn = null;
-                const interface = device.configuration.interfaces.find(i => i.interfaceNumber === 5);
-                const alternate = interface.alternates[0]; // Utiliser le premier alternate
-
-                for (const endpoint of alternate.endpoints) {
-                    if (endpoint.direction === 'in' && endpoint.type === 'bulk') {
-                        endpointIn = endpoint;
-                    }
-                }
-
-                if (!endpointIn) throw new Error("Endpoint IN non trouvé");
-
-                // Mise à jour UI connexion
                 connectButton.textContent = "Connecté !";
                 connectButton.style.backgroundColor = "#27ae60";
 
+                // Configuration du lecteur de flux
+                const reader = port.readable.getReader();
                 const textDecoder = new TextDecoder();
                 let receivedData = '';
 
-                async function readData() {
-                    try {
-                        const result = await device.transferIn(endpointIn.endpointNumber, 64);
-                        const data = new Uint8Array(result.data.buffer);
-                        receivedData += textDecoder.decode(data);
+                while (true) {
+                    const { value, done } = await reader.read();
 
-                        // Découpage par lignes
-                        const lines = receivedData.split('\n');
-                        receivedData = lines.pop(); // Garder le fragment incomplet
+                    if (done) {
+                        reader.releaseLock();
+                        break;
+                    }
 
-                        for (const line of lines) {
-                            if (!line.trim()) continue;
+                    // Conversion et traitement des données
+                    receivedData += textDecoder.decode(value, { stream: true });
 
-                            const value = parseInt(line);
-                            if (!isNaN(value)) {
-                                dist = value / 58;
-                                distHTML.textContent = dist.toFixed(2);
-                            }
+                    // Recherche de lignes complètes
+                    const lines = receivedData.split('\n');
+
+                    // Garder les données incomplètes pour la prochaine fois
+                    receivedData = lines.pop() || '';
+
+                    // Traiter toutes les lignes complètes
+                    for (const line of lines) {
+                        // Nettoyer et valider la ligne
+                        const cleanedLine = line.trim();
+                        if (!cleanedLine) continue; // Ignorer les lignes vides
+
+                        // Convertir en nombre avec gestion des erreurs
+                        const tmp = parseInt(cleanedLine);
+
+                        if (!isNaN(tmp)) {
+                            // Utiliser la valeur ici (ex: mise à jour UI)
+                            console.log("Valeur valide (µs):", tmp);
+                            dist = tmp / 58;
+                            distHTML.textContent = dist;
+                            // Exemple: document.getElementById("distance").innerText = distance;
+                        } else {
+                            console.warn("Valeur invalide reçue:", cleanedLine);
+                            // Gérer les erreurs (None, timeout, etc.)
                         }
-
-                        if (device.opened) readData(); // Continuer la lecture
-
-                    } catch (error) {
-                        console.error("Erreur lecture:", error);
-                        handleDisconnect();
                     }
                 }
-
-                readData();
-
             } catch (error) {
-                console.error("Erreur connexion:", error);
+                console.error("Erreur:", error);
                 connectButton.textContent = "Erreur - Réessayer";
                 connectButton.style.backgroundColor = "#e74c3c";
-                if (device?.opened) await device.close();
-            }
-
-            function handleDisconnect() {
-                connectButton.textContent = "Connecter le micro:bit";
-                connectButton.style.backgroundColor = "";
-                if (device?.opened) device.close();
             }
         }
-
-        // async function connectToMicrobit() {
-        //     dist = 0;
-        //     stopSound();
-        //     try {
-        //         // Demande à l'utilisateur de sélectionner le port série
-        //         const port = await navigator.serial.requestPort();
-        //         await port.open({ baudRate: 115200 });
-
-        //         connectButton.textContent = "Connecté !";
-        //         connectButton.style.backgroundColor = "#27ae60";
-
-        //         // Configuration du lecteur de flux
-        //         const reader = port.readable.getReader();
-        //         const textDecoder = new TextDecoder();
-        //         let receivedData = '';
-
-        //         while (true) {
-        //             const { value, done } = await reader.read();
-
-        //             if (done) {
-        //                 reader.releaseLock();
-        //                 break;
-        //             }
-
-        //             // Conversion et traitement des données
-        //             receivedData += textDecoder.decode(value, { stream: true });
-
-        //             // Recherche de lignes complètes
-        //             const lines = receivedData.split('\n');
-
-        //             // Garder les données incomplètes pour la prochaine fois
-        //             receivedData = lines.pop() || '';
-
-        //             // Traiter toutes les lignes complètes
-        //             for (const line of lines) {
-        //                 // Nettoyer et valider la ligne
-        //                 const cleanedLine = line.trim();
-        //                 if (!cleanedLine) continue; // Ignorer les lignes vides
-
-        //                 // Convertir en nombre avec gestion des erreurs
-        //                 const tmp = parseInt(cleanedLine);
-
-        //                 if (!isNaN(tmp)) {
-        //                     // Utiliser la valeur ici (ex: mise à jour UI)
-        //                     console.log("Valeur valide (µs):", tmp);
-        //                     dist = tmp / 58;
-        //                     distHTML.textContent = dist;
-        //                     // Exemple: document.getElementById("distance").innerText = distance;
-        //                 } else {
-        //                     console.warn("Valeur invalide reçue:", cleanedLine);
-        //                     // Gérer les erreurs (None, timeout, etc.)
-        //                 }
-        //             }
-        //         }
-        //     } catch (error) {
-        //         console.error("Erreur:", error);
-        //         connectButton.textContent = "Erreur - Réessayer";
-        //         connectButton.style.backgroundColor = "#e74c3c";
-        //     }
-        // }
 
         // Gestionnaire d'événement pour le bouton
         connectButton.addEventListener('click', connectToMicrobit);
