@@ -100,7 +100,7 @@
         async function connectToMicrobit() {
             try {
                 // Demande à l'utilisateur de sélectionner le port série
-                port = await navigator.serial.requestPort();
+                const port = await navigator.serial.requestPort();
                 await port.open({ baudRate: 115200 });
 
                 connectButton.textContent = "Connecté !";
@@ -108,7 +108,7 @@
 
                 // Configuration du lecteur de flux
                 const reader = port.readable.getReader();
-
+                const textDecoder = new TextDecoder();
                 let receivedData = '';
 
                 while (true) {
@@ -119,24 +119,32 @@
                         break;
                     }
 
-                    // Conversion des données reçues en texte
-                    receivedData += new TextDecoder().decode(value);
+                    // Conversion et traitement des données
+                    receivedData += textDecoder.decode(value, { stream: true });
 
                     // Recherche de lignes complètes
                     const lines = receivedData.split('\n');
 
-                    if (lines.length > 1) {
-                        // Garder les données incomplètes pour la prochaine fois
-                        receivedData = lines.pop();
+                    // Garder les données incomplètes pour la prochaine fois
+                    receivedData = lines.pop() || '';
 
-                        // Traiter la dernière ligne complète
-                        const lastLine = lines[lines.length - 1];
-                        // const values = lastLine.split(',');
+                    // Traiter toutes les lignes complètes
+                    for (const line of lines) {
+                        // Nettoyer et valider la ligne
+                        const cleanedLine = line.trim();
+                        if (!cleanedLine) continue; // Ignorer les lignes vides
 
-                        try {
-                            dist = parseInt(lastLine);
-                        } catch (error) {
-                            console.error(error);
+                        // Convertir en nombre avec gestion des erreurs
+                        const distance = parseInt(cleanedLine);
+
+                        if (!isNaN(distance) && distance > 0) {
+                            // Utiliser la valeur ici (ex: mise à jour UI)
+                            console.log("Distance valide:", distance);
+                            dist = distance / 58;
+                            // Exemple: document.getElementById("distance").innerText = distance;
+                        } else {
+                            console.warn("Valeur invalide reçue:", cleanedLine);
+                            // Gérer les erreurs (None, timeout, etc.)
                         }
                     }
                 }
@@ -146,7 +154,6 @@
                 connectButton.style.backgroundColor = "#e74c3c";
             }
         }
-
         // Gestionnaire d'événement pour le bouton
         connectButton.addEventListener('click', connectToMicrobit);
 
@@ -212,7 +219,7 @@
             if (dist > distMAX) {
                 stopSound();
             } else if (dist >= distMIN) {
-                freq = freqREF * demiTon ** (dist/2);
+                freq = freqREF * demiTon ** (dist / 2);
                 playSound(freq);
             }
             getInputs();
