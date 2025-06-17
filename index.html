@@ -3,7 +3,7 @@
 
 <head>
     <title>micro:bit Thérémine</title>
-    <script src='serial.js' type='module'></script>
+    <script src='serial.js'></script>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -90,8 +90,8 @@
         <input type="number" id="freqREF" min="0" max="10000" value="150">
     </div>
 
-    <script type='module'>
-        import { serial as webSerialPolyfill } from './serial.js';
+    <script>
+        // import { serial as webSerialPolyfill } from './serial.js';
 
 
         let port;
@@ -107,7 +107,7 @@
             stopSound();
             try {
                 // Assurez-vous que le polyfill est disponible si l'API native n'est pas là
-                const serial = navigator.serial || webSerialPolyfill;
+                const serial = navigator.serial || serial;
 
 
                 // Demande à l'utilisateur de sélectionner le port série

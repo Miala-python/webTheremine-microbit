@@ -16,7 +16,7 @@
  * permissions and limitations under the License.
  */
 'use strict';
-export var SerialPolyfillProtocol;
+ var SerialPolyfillProtocol; //export
 (function (SerialPolyfillProtocol) {
     SerialPolyfillProtocol[SerialPolyfillProtocol["UsbCdcAcm"] = 0] = "UsbCdcAcm";
 })(SerialPolyfillProtocol || (SerialPolyfillProtocol = {}));
@@ -168,7 +168,7 @@ class UsbEndpointUnderlyingSink {
     }
 }
 /** a class used to control serial devices over WebUSB */
-export class SerialPort {
+ class SerialPort { //export
     /**
      * constructor taking a WebUSB device that creates a SerialPort instance.
      * @param {USBDevice} device A device acquired from the WebUSB API
@@ -487,5 +487,5 @@ class Serial {
     }
 }
 /* an object to be used for starting the serial workflow */
-export const serial = new Serial();
+ const serial = new Serial(); //export
 //# sourceMappingURL=serial.js.map
