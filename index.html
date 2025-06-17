@@ -160,53 +160,70 @@
         // Gestionnaire d'événement pour le bouton
         connectButton.addEventListener('click', connectToMicrobit);
 
-        let audioContext;
-        let currentOscillator = null;
-        let currentGainNode = null;
+let audioContext;
+let currentOscillator = null;
+let currentGainNode = null;
 
-        function playSound(freq) {
-            // Arrêter le son précédent
-            stopSound();
+function playSound(freq) {
+    // Initialiser le contexte audio
+    if (!audioContext) {
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    }
 
-            // Initialiser le contexte audio
-            if (!audioContext) {
-                audioContext = new (window.AudioContext || window.webkitAudioContext)();
-            }
+    // Créer l'oscillateur et le gain s'ils n'existent pas
+    if (!currentOscillator) {
+        currentOscillator = audioContext.createOscillator();
+        currentGainNode = audioContext.createGain();
 
-            // Créer un nouvel oscillateur et gainNode
-            currentOscillator = audioContext.createOscillator();
-            currentGainNode = audioContext.createGain();
+        currentOscillator.type = 'sine';
+        currentGainNode.gain.value = 0;
+        
+        currentOscillator.connect(currentGainNode);
+        currentGainNode.connect(audioContext.destination);
+        
+        currentOscillator.start();
+    }
 
-            // Configurer les paramètres
-            currentOscillator.type = 'sine';
-            currentOscillator.frequency.value = freq;
-            currentGainNode.gain.value = 0.3;
+    // Annuler les transitions en cours
+    currentOscillator.frequency.cancelScheduledValues(audioContext.currentTime);
+    currentGainNode.gain.cancelScheduledValues(audioContext.currentTime);
+    
+    // Transition fluide de la fréquence (exponentielle pour les fréquences)
+    currentOscillator.frequency.exponentialRampToValueAtTime(
+        freq, 
+        audioContext.currentTime + 0.05
+    );
+    
+    // Transition fluide du volume (linéaire pour le gain)
+    currentGainNode.gain.linearRampToValueAtTime(
+        0.3, 
+        audioContext.currentTime + 0.05
+    );
+}
 
-            // Connecter les composants
-            currentOscillator.connect(currentGainNode);
-            currentGainNode.connect(audioContext.destination);
-
-            // Démarrer le son
-            currentOscillator.start();
-        }
-
-        function stopSound() {
-            if (currentOscillator) {
-                // // Fade out pour éviter les clics
-                // currentGainNode.gain.exponentialRampToValueAtTime(
-                //     0.001,
-                //     audioContext.currentTime + 0.1
-                // );
-
-                // Arrêt et nettoyage
+function stopSound() {
+    if (currentOscillator && currentGainNode) {
+        // Annuler les transitions en cours
+        currentGainNode.gain.cancelScheduledValues(audioContext.currentTime);
+        
+        // Fade out avant l'arrêt
+        currentGainNode.gain.linearRampToValueAtTime(
+            0, 
+            audioContext.currentTime + 0.1
+        );
+        
+        // Arrêt et nettoyage après le fade
+        setTimeout(() => {
+            if (currentGainNode.gain.value === 0) {
                 currentOscillator.stop();
                 currentOscillator.disconnect();
                 currentGainNode.disconnect();
                 currentOscillator = null;
                 currentGainNode = null;
             }
-        }
-
+        }, 100);
+    }
+}
         function getInputs() {
             distMIN = document.getElementById('distMIN').value;
             distMAX = document.getElementById('distMAX').value;
