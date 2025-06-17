@@ -100,130 +100,224 @@
         async function connectToMicrobit() {
             dist = 0;
             stopSound();
+            let device;
             try {
-                // Demande à l'utilisateur de sélectionner le port série
-                const port = await navigator.serial.requestPort();
-                await port.open({ baudRate: 115200 });
+                // Demander la connexion au micro:bit via Web USB
+                device = await navigator.usb.requestDevice({
+                    filters: [{ vendorId: 0x0D28 }] // Vendor ID du micro:bit
+                });
+
+                await device.open();
+                await device.selectConfiguration(1);
+                await device.claimInterface(0); // Interface standard pour la communication série
+
+                // Trouver l'endpoint IN (reception)
+                let endpointIn = null;
+                const interfaces = device.configuration.interfaces;
+                for (const iface of interfaces) {
+                    for (const alternate of iface.alternates) {
+                        for (const endpoint of alternate.endpoints) {
+                            if (endpoint.direction === 'in') {
+                                endpointIn = endpoint;
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                if (!endpointIn) {
+                    throw new Error("Endpoint IN non trouvé");
+                }
 
                 connectButton.textContent = "Connecté !";
                 connectButton.style.backgroundColor = "#27ae60";
 
-                // Configuration du lecteur de flux
-                const reader = port.readable.getReader();
                 const textDecoder = new TextDecoder();
                 let receivedData = '';
 
-                while (true) {
-                    const { value, done } = await reader.read();
+                // Fonction récursive de lecture
+                async function readData() {
+                    try {
+                        const result = await device.transferIn(endpointIn.endpointNumber, 64);
+                        const data = new Uint8Array(result.data.buffer);
+                        receivedData += textDecoder.decode(data);
 
-                    if (done) {
-                        reader.releaseLock();
-                        break;
-                    }
+                        // Traitement des lignes
+                        const lines = receivedData.split('\n');
+                        receivedData = lines.pop() || ''; // Garder les données incomplètes
 
-                    // Conversion et traitement des données
-                    receivedData += textDecoder.decode(value, { stream: true });
+                        for (const line of lines) {
+                            const cleanedLine = line.trim();
+                            if (!cleanedLine) continue;
 
-                    // Recherche de lignes complètes
-                    const lines = receivedData.split('\n');
-
-                    // Garder les données incomplètes pour la prochaine fois
-                    receivedData = lines.pop() || '';
-
-                    // Traiter toutes les lignes complètes
-                    for (const line of lines) {
-                        // Nettoyer et valider la ligne
-                        const cleanedLine = line.trim();
-                        if (!cleanedLine) continue; // Ignorer les lignes vides
-
-                        // Convertir en nombre avec gestion des erreurs
-                        const tmp = parseInt(cleanedLine);
-
-                        if (!isNaN(tmp)) {
-                            // Utiliser la valeur ici (ex: mise à jour UI)
-                            console.log("Valeur valide (µs):", tmp);
-                            dist = tmp / 58;
-                            distHTML.textContent = dist;
-                            // Exemple: document.getElementById("distance").innerText = distance;
-                        } else {
-                            console.warn("Valeur invalide reçue:", cleanedLine);
-                            // Gérer les erreurs (None, timeout, etc.)
+                            const tmp = parseInt(cleanedLine);
+                            if (!isNaN(tmp)) {
+                                dist = tmp / 58;
+                                distHTML.textContent = dist.toFixed(2); // Afficher avec 2 décimales
+                            } else {
+                                console.warn("Valeur invalide:", cleanedLine);
+                            }
                         }
+
+                        // Relancer la lecture si toujours connecté
+                        if (device.opened) {
+                            readData();
+                        }
+                    } catch (error) {
+                        console.error("Erreur lecture:", error);
+                        handleDisconnect();
                     }
                 }
+
+                // Démarrer la lecture
+                readData();
+
             } catch (error) {
-                console.error("Erreur:", error);
+                console.error("Erreur connexion:", error);
                 connectButton.textContent = "Erreur - Réessayer";
                 connectButton.style.backgroundColor = "#e74c3c";
+                if (device && device.opened) {
+                    await device.close();
+                }
+            }
+
+            function handleDisconnect() {
+                connectButton.textContent = "Déconnecté - Reconnecter";
+                connectButton.style.backgroundColor = "#e74c3c";
+                if (device && device.opened) {
+                    device.close();
+                }
             }
         }
+
+        // async function connectToMicrobit() {
+        //     dist = 0;
+        //     stopSound();
+        //     try {
+        //         // Demande à l'utilisateur de sélectionner le port série
+        //         const port = await navigator.serial.requestPort();
+        //         await port.open({ baudRate: 115200 });
+
+        //         connectButton.textContent = "Connecté !";
+        //         connectButton.style.backgroundColor = "#27ae60";
+
+        //         // Configuration du lecteur de flux
+        //         const reader = port.readable.getReader();
+        //         const textDecoder = new TextDecoder();
+        //         let receivedData = '';
+
+        //         while (true) {
+        //             const { value, done } = await reader.read();
+
+        //             if (done) {
+        //                 reader.releaseLock();
+        //                 break;
+        //             }
+
+        //             // Conversion et traitement des données
+        //             receivedData += textDecoder.decode(value, { stream: true });
+
+        //             // Recherche de lignes complètes
+        //             const lines = receivedData.split('\n');
+
+        //             // Garder les données incomplètes pour la prochaine fois
+        //             receivedData = lines.pop() || '';
+
+        //             // Traiter toutes les lignes complètes
+        //             for (const line of lines) {
+        //                 // Nettoyer et valider la ligne
+        //                 const cleanedLine = line.trim();
+        //                 if (!cleanedLine) continue; // Ignorer les lignes vides
+
+        //                 // Convertir en nombre avec gestion des erreurs
+        //                 const tmp = parseInt(cleanedLine);
+
+        //                 if (!isNaN(tmp)) {
+        //                     // Utiliser la valeur ici (ex: mise à jour UI)
+        //                     console.log("Valeur valide (µs):", tmp);
+        //                     dist = tmp / 58;
+        //                     distHTML.textContent = dist;
+        //                     // Exemple: document.getElementById("distance").innerText = distance;
+        //                 } else {
+        //                     console.warn("Valeur invalide reçue:", cleanedLine);
+        //                     // Gérer les erreurs (None, timeout, etc.)
+        //                 }
+        //             }
+        //         }
+        //     } catch (error) {
+        //         console.error("Erreur:", error);
+        //         connectButton.textContent = "Erreur - Réessayer";
+        //         connectButton.style.backgroundColor = "#e74c3c";
+        //     }
+        // }
+
         // Gestionnaire d'événement pour le bouton
         connectButton.addEventListener('click', connectToMicrobit);
 
-let audioContext;
-let currentOscillator = null;
-let currentGainNode = null;
+        let audioContext;
+        let currentOscillator = null;
+        let currentGainNode = null;
 
-function playSound(freq) {
-    // Initialiser le contexte audio
-    if (!audioContext) {
-        audioContext = new (window.AudioContext || window.webkitAudioContext)();
-    }
-
-    // Créer l'oscillateur et le gain s'ils n'existent pas
-    if (!currentOscillator) {
-        currentOscillator = audioContext.createOscillator();
-        currentGainNode = audioContext.createGain();
-
-        currentOscillator.type = 'sine';
-        currentGainNode.gain.value = 0;
-        
-        currentOscillator.connect(currentGainNode);
-        currentGainNode.connect(audioContext.destination);
-        
-        currentOscillator.start();
-    }
-
-    // Annuler les transitions en cours
-    currentOscillator.frequency.cancelScheduledValues(audioContext.currentTime);
-    currentGainNode.gain.cancelScheduledValues(audioContext.currentTime);
-    
-    // Transition fluide de la fréquence (exponentielle pour les fréquences)
-    currentOscillator.frequency.exponentialRampToValueAtTime(
-        freq, 
-        audioContext.currentTime + 0.05
-    );
-    
-    // Transition fluide du volume (linéaire pour le gain)
-    currentGainNode.gain.linearRampToValueAtTime(
-        0.3, 
-        audioContext.currentTime + 0.05
-    );
-}
-
-function stopSound() {
-    if (currentOscillator && currentGainNode) {
-        // Annuler les transitions en cours
-        currentGainNode.gain.cancelScheduledValues(audioContext.currentTime);
-        
-        // Fade out avant l'arrêt
-        currentGainNode.gain.linearRampToValueAtTime(
-            0, 
-            audioContext.currentTime + 0.1
-        );
-        
-        // Arrêt et nettoyage après le fade
-        setTimeout(() => {
-            if (currentGainNode.gain.value === 0) {
-                currentOscillator.stop();
-                currentOscillator.disconnect();
-                currentGainNode.disconnect();
-                currentOscillator = null;
-                currentGainNode = null;
+        function playSound(freq) {
+            // Initialiser le contexte audio
+            if (!audioContext) {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
             }
-        }, 100);
-    }
-}
+
+            // Créer l'oscillateur et le gain s'ils n'existent pas
+            if (!currentOscillator) {
+                currentOscillator = audioContext.createOscillator();
+                currentGainNode = audioContext.createGain();
+
+                currentOscillator.type = 'sine';
+                currentGainNode.gain.value = 0;
+
+                currentOscillator.connect(currentGainNode);
+                currentGainNode.connect(audioContext.destination);
+
+                currentOscillator.start();
+            }
+
+            // Annuler les transitions en cours
+            currentOscillator.frequency.cancelScheduledValues(audioContext.currentTime);
+            currentGainNode.gain.cancelScheduledValues(audioContext.currentTime);
+
+            // Transition fluide de la fréquence (exponentielle pour les fréquences)
+            currentOscillator.frequency.exponentialRampToValueAtTime(
+                freq,
+                audioContext.currentTime + 0.05
+            );
+
+            // Transition fluide du volume (linéaire pour le gain)
+            currentGainNode.gain.linearRampToValueAtTime(
+                0.3,
+                audioContext.currentTime + 0.05
+            );
+        }
+
+        function stopSound() {
+            if (currentOscillator && currentGainNode) {
+                // Annuler les transitions en cours
+                currentGainNode.gain.cancelScheduledValues(audioContext.currentTime);
+
+                // Fade out avant l'arrêt
+                currentGainNode.gain.linearRampToValueAtTime(
+                    0,
+                    audioContext.currentTime + 0.1
+                );
+
+                // Arrêt et nettoyage après le fade
+                setTimeout(() => {
+                    if (currentGainNode.gain.value === 0) {
+                        currentOscillator.stop();
+                        currentOscillator.disconnect();
+                        currentGainNode.disconnect();
+                        currentOscillator = null;
+                        currentGainNode = null;
+                    }
+                }, 100);
+            }
+        }
         function getInputs() {
             distMIN = document.getElementById('distMIN').value;
             distMAX = document.getElementById('distMAX').value;
@@ -248,96 +342,3 @@ function stopSound() {
 </body>
 
 </html>
-
-async function connectToMicrobit() {
-    dist = 0;
-    stopSound();
-    let device;
-    try {
-        // Demander la connexion au micro:bit via Web USB
-        device = await navigator.usb.requestDevice({
-            filters: [{ vendorId: 0x0D28 }] // Vendor ID du micro:bit
-        });
-
-        await device.open();
-        await device.selectConfiguration(1);
-        await device.claimInterface(0); // Interface standard pour la communication série
-
-        // Trouver l'endpoint IN (reception)
-        let endpointIn = null;
-        const interfaces = device.configuration.interfaces;
-        for (const iface of interfaces) {
-            for (const alternate of iface.alternates) {
-                for (const endpoint of alternate.endpoints) {
-                    if (endpoint.direction === 'in') {
-                        endpointIn = endpoint;
-                        break;
-                    }
-                }
-            }
-        }
-
-        if (!endpointIn) {
-            throw new Error("Endpoint IN non trouvé");
-        }
-
-        connectButton.textContent = "Connecté !";
-        connectButton.style.backgroundColor = "#27ae60";
-
-        const textDecoder = new TextDecoder();
-        let receivedData = '';
-
-        // Fonction récursive de lecture
-        async function readData() {
-            try {
-                const result = await device.transferIn(endpointIn.endpointNumber, 64);
-                const data = new Uint8Array(result.data.buffer);
-                receivedData += textDecoder.decode(data);
-
-                // Traitement des lignes
-                const lines = receivedData.split('\n');
-                receivedData = lines.pop() || ''; // Garder les données incomplètes
-
-                for (const line of lines) {
-                    const cleanedLine = line.trim();
-                    if (!cleanedLine) continue;
-
-                    const tmp = parseInt(cleanedLine);
-                    if (!isNaN(tmp)) {
-                        dist = tmp / 58;
-                        distHTML.textContent = dist.toFixed(2); // Afficher avec 2 décimales
-                    } else {
-                        console.warn("Valeur invalide:", cleanedLine);
-                    }
-                }
-
-                // Relancer la lecture si toujours connecté
-                if (device.opened) {
-                    readData();
-                }
-            } catch (error) {
-                console.error("Erreur lecture:", error);
-                handleDisconnect();
-            }
-        }
-
-        // Démarrer la lecture
-        readData();
-
-    } catch (error) {
-        console.error("Erreur connexion:", error);
-        connectButton.textContent = "Erreur - Réessayer";
-        connectButton.style.backgroundColor = "#e74c3c";
-        if (device && device.opened) {
-            await device.close();
-        }
-    }
-
-    function handleDisconnect() {
-        connectButton.textContent = "Déconnecté - Reconnecter";
-        connectButton.style.backgroundColor = "#e74c3c";
-        if (device && device.opened) {
-            device.close();
-        }
-    }
-}
