@@ -1,13 +1,15 @@
 <!DOCTYPE html>
 <html>
+
 <head>
-    <title>micro:bit Accéléromètre en Direct</title>
+    <title>micro:bit Thérémine</title>
     <style>
-        body { 
-            font-family: Arial, sans-serif; 
+        body {
+            font-family: Arial, sans-serif;
             text-align: center;
             margin: 20px;
         }
+
         #data-container {
             margin: 30px auto;
             padding: 20px;
@@ -16,12 +18,14 @@
             max-width: 400px;
             background-color: #f8f9fa;
         }
+
         .value {
             font-size: 24px;
             font-weight: bold;
             margin: 10px 0;
             color: #2c3e50;
         }
+
         button {
             background-color: #3498db;
             color: white;
@@ -32,71 +36,104 @@
             cursor: pointer;
             margin: 10px;
         }
+
         button:hover {
             background-color: #2980b9;
         }
     </style>
+    <style>
+        .distance-selector {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .distance-selector input {
+            width: 80px;
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+
+        select {
+            padding: 8px 12px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            background: white;
+        }
+    </style>
 </head>
+
 <body>
     <h1>micro:bit Accéléromètre en Temps Réel</h1>
-    
+
     <button id="connectBtn">Connecter au micro:bit</button>
-    
+
     <div id="data-container">
-        <div>X: <span id="x-value" class="value">0</span></div>
-        <div>Y: <span id="y-value" class="value">0</span></div>
-        <div>Z: <span id="z-value" class="value">0</span></div>
+        <div>Dist: <span id="distVal" class="value">0</span></div>
+        <div>Freq: <span id="freqVal" class="value">0</span></div>
+    </div>
+
+    <!-- Sélecteur pour distMIN et distMAX -->
+    <label for="distance-range">Plage de distance :</label>
+    <div class="distance-selector">
+        <input type="number" id="distMIN" min="0" max="1000" value="5" aria-label="Distance minimale (cm)">
+        <span>à</span>
+        <input type="number" id="distMAX" min="0" max="1000" value="90" aria-label="Distance maximale (cm)">
+    </div>
+
+    <!-- Sélecteur pour freqREF -->
+    <label for="freqREF">Fréquence de référence :</label>
+    <div class="distance-selector">
+        <input type="number" id="freqREF" min="0" max="10000" value="150">
     </div>
 
     <script>
         let port;
         const connectButton = document.getElementById('connectBtn');
-        const xValue = document.getElementById('x-value');
-        const yValue = document.getElementById('y-value');
-        const zValue = document.getElementById('z-value');
+        const distHTML = document.getElementById('distVal');
+        const freqHTML = document.getElementById('freqVal');
+        var dist = 0;
+        var distMIN, distMAX, freqREF;
 
         async function connectToMicrobit() {
             try {
                 // Demande à l'utilisateur de sélectionner le port série
                 port = await navigator.serial.requestPort();
                 await port.open({ baudRate: 115200 });
-                
+
                 connectButton.textContent = "Connecté !";
                 connectButton.style.backgroundColor = "#27ae60";
-                
+
                 // Configuration du lecteur de flux
                 const reader = port.readable.getReader();
-                
+
                 let receivedData = '';
-                
+
                 while (true) {
                     const { value, done } = await reader.read();
-                    
+
                     if (done) {
                         reader.releaseLock();
                         break;
                     }
-                    
+
                     // Conversion des données reçues en texte
                     receivedData += new TextDecoder().decode(value);
-                    
+
                     // Recherche de lignes complètes
                     const lines = receivedData.split('\n');
-                    
+
                     if (lines.length > 1) {
                         // Garder les données incomplètes pour la prochaine fois
                         receivedData = lines.pop();
-                        
+
                         // Traiter la dernière ligne complète
                         const lastLine = lines[lines.length - 1];
-                        const values = lastLine.split(',');
-                        
-                        if (values.length === 3) {
-                            // Mise à jour de l'interface
-                            xValue.textContent = values[0];
-                            yValue.textContent = values[1];
-                            zValue.textContent = values[2];
-                        }
+                        // const values = lastLine.split(',');
+
+                        dist = parseInt(lastLine);
                     }
                 }
             } catch (error) {
@@ -108,6 +145,80 @@
 
         // Gestionnaire d'événement pour le bouton
         connectButton.addEventListener('click', connectToMicrobit);
+
+        var audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        var oscillateur = audioContext.createOscillator();
+        var gainNode = audioContext.createGain();
+
+        let audioContext;
+        let currentOscillator = null;
+        let currentGainNode = null;
+
+        function playSound(freq) {
+            // Arrêter le son précédent
+            stopSound();
+
+            // Initialiser le contexte audio
+            if (!audioContext) {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            }
+
+            // Créer un nouvel oscillateur et gainNode
+            currentOscillator = audioContext.createOscillator();
+            currentGainNode = audioContext.createGain();
+
+            // Configurer les paramètres
+            currentOscillator.type = 'sine';
+            currentOscillator.frequency.value = freq;
+            currentGainNode.gain.value = 0.3;
+
+            // Connecter les composants
+            currentOscillator.connect(currentGainNode);
+            currentGainNode.connect(audioContext.destination);
+
+            // Démarrer le son
+            currentOscillator.start();
+        }
+
+        function stopSound() {
+            if (currentOscillator) {
+                // Fade out pour éviter les clics
+                currentGainNode.gain.exponentialRampToValueAtTime(
+                    0.001,
+                    audioContext.currentTime + 0.1
+                );
+
+                // Arrêt et nettoyage
+                setTimeout(() => {
+                    currentOscillator.stop();
+                    currentOscillator.disconnect();
+                    currentGainNode.disconnect();
+                    currentOscillator = null;
+                    currentGainNode = null;
+                }, 100);
+            }
+        }
+
+        function getInputs() {
+            distMIN = document.getElementById('distMIN').value;
+            distMAX = document.getElementById('distMAX').value;
+            freqREF = document.getElementById('freqREF').value;
+        }
+        getInputs()
+
+        const demiTon = 2 ** (1 / 12);
+
+        setTimeout(() => {
+            if (dist > distMAX) {
+                stopSound();
+            } else if (dist >= distMIN) {
+                freq = freqREF * demiTon ** (dist/2);
+                playSound(freq);
+            }
+            getInputs();
+        }, 50)
+
     </script>
 </body>
+
 </html>
