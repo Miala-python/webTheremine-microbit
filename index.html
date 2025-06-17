@@ -141,6 +141,7 @@
                             // Utiliser la valeur ici (ex: mise à jour UI)
                             console.log("Distance valide:", distance);
                             dist = distance / 58;
+                            distHTML.textContent = dist;
                             // Exemple: document.getElementById("distance").innerText = distance;
                         } else {
                             console.warn("Valeur invalide reçue:", cleanedLine);
@@ -220,6 +221,7 @@
                 stopSound();
             } else if (dist >= distMIN) {
                 freq = freqREF * demiTon ** (dist / 2);
+                freqHTML.textContent = freq;
                 playSound(freq);
             }
             getInputs();
