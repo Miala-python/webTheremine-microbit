@@ -90,7 +90,10 @@
         <input type="number" id="freqREF" min="0" max="10000" value="150">
     </div>
 
-    <script>
+    <script type='module'>
+import {serial as webSerialPolyfill} from 'serial.js';
+
+
         let port;
         const connectButton = document.getElementById('connectBtn');
         const distHTML = document.getElementById('distVal');
