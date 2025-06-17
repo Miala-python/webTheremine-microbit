@@ -190,20 +190,18 @@
 
         function stopSound() {
             if (currentOscillator) {
-                // Fade out pour éviter les clics
-                currentGainNode.gain.exponentialRampToValueAtTime(
-                    0.001,
-                    audioContext.currentTime + 0.1
-                );
+                // // Fade out pour éviter les clics
+                // currentGainNode.gain.exponentialRampToValueAtTime(
+                //     0.001,
+                //     audioContext.currentTime + 0.1
+                // );
 
                 // Arrêt et nettoyage
-                setTimeout(() => {
-                    currentOscillator.stop();
-                    currentOscillator.disconnect();
-                    currentGainNode.disconnect();
-                    currentOscillator = null;
-                    currentGainNode = null;
-                }, 100);
+                currentOscillator.stop();
+                currentOscillator.disconnect();
+                currentGainNode.disconnect();
+                currentOscillator = null;
+                currentGainNode = null;
             }
         }
 
