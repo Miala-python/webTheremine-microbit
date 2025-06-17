@@ -103,8 +103,12 @@
             dist = 0;
             stopSound();
             try {
+// Assurez-vous que le polyfill est disponible si l'API native n'est pas là
+const serial = navigator.serial || webSerialPolyfill;
+
+
                 // Demande à l'utilisateur de sélectionner le port série
-                const port = await navigator.serial.requestPort();
+                const port = await serial.requestPort();
                 await port.open({ baudRate: 115200 });
 
                 connectButton.textContent = "Connecté !";
