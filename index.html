@@ -133,9 +133,11 @@
                         const lastLine = lines[lines.length - 1];
                         // const values = lastLine.split(',');
 
-                        
-
-                        dist = parseInt(lastLine);
+                        try {
+                            dist = parseInt(lastLine);
+                        } catch (error) {
+                            console.error(error);
+                        }
                     }
                 }
             } catch (error) {
