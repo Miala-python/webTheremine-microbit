@@ -98,6 +98,8 @@
         var distMIN, distMAX, freqREF;
 
         async function connectToMicrobit() {
+            dist = 0;
+            stopSound();
             try {
                 // Demande à l'utilisateur de sélectionner le port série
                 const port = await navigator.serial.requestPort();
