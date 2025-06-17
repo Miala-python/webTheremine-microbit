@@ -8,7 +8,8 @@
         var distMIN, distMAX, freqREF, coefP;
         const distHTML = document.getElementById('distVal');
         const freqHTML = document.getElementById('freqVal');
-        var serial;
+try{
+        var serial;}catch (e){}
 
 
         async function connectToMicrobit() {
