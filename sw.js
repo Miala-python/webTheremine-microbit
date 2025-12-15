@@ -1,10 +1,10 @@
 const STATIC_CACHE = 'pwa-static-v2';
 const DYNAMIC_CACHE = 'pwa-dynamic-v2';
 const urlsToCache = [
-  '/',
-  '/index.html',
-  '/index.js',
-  '/serial.js'
+  './',
+  './index.html',
+  './index.js',
+  './serial.js'
 ];
 
 // Cache statique à l'installation
@@ -46,7 +46,7 @@ self.addEventListener('fetch', event => {
         // Si fetch échoue (hors ligne), on regarde dans le cache
         return caches.match(event.request)
           .then(cachedResponse => {
-            return cachedResponse || caches.match('/index.html');
+            return cachedResponse || caches.match('./index.html');
           });
       })
   );
